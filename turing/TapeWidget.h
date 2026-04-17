@@ -35,9 +35,7 @@ private slots:
 private:
     QVector<QString> m_tape;
     int m_headPos;
-    int m_oldHeadPos;
     int m_visibleStartIndex;
-    int m_oldVisibleStartIndex;
     int m_targetVisibleStartIndex;
 
     qreal m_headOffset;
@@ -50,6 +48,9 @@ private:
     int m_cellWidth;
     int m_cellHeight;
     int m_visibleCells;
+
+    bool m_isAnimating;
+    bool m_animationInProgress;
 
     qreal headOffset() const { return m_headOffset; }
     void setHeadOffset(qreal offset);

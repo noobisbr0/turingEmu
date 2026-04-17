@@ -10,7 +10,7 @@ TapeWidget::TapeWidget(QWidget *parent)
     : QWidget(parent), m_headPos(0), m_visibleStartIndex(0),
     m_targetVisibleStartIndex(0), m_headOffset(0.0), m_tapeOffset(0.0),
     m_cellWidth(70), m_cellHeight(70), m_visibleCells(11),
-    m_oldHeadPos(0), m_oldVisibleStartIndex(0)
+    m_isAnimating(false), m_animationInProgress(false)
 {
     setMinimumSize(m_cellWidth * m_visibleCells, m_cellHeight * 2 + 20);
 
@@ -55,18 +55,20 @@ void TapeWidget::updateCellSize()
 
 void TapeWidget::setTape(const QVector<QString>& tape, int headPos)
 {
+    int oldHeadPos = m_headPos;
     m_tape = tape;
     m_headPos = headPos;
 
-    // Останавливаем текущую анимацию, но сохраняем текущие смещения
+    // Если анимация уже идёт, останавливаем её
     if (m_animationGroup->state() == QAnimationGroup::Running) {
         m_animationGroup->stop();
-        // После остановки m_headOffset и m_tapeOffset остаются в текущих значениях
+        // После остановки свойства остаются в текущих значениях
     }
 
     // Определяем, нужно ли двигать ленту
     m_targetVisibleStartIndex = m_visibleStartIndex;
 
+    // Проверяем, не вышел ли указатель за границы видимой области
     if (m_headPos < m_visibleStartIndex + 2) {
         m_targetVisibleStartIndex = qMax(0, m_headPos - m_visibleCells / 3);
     } else if (m_headPos >= m_visibleStartIndex + m_visibleCells - 2) {
@@ -74,19 +76,34 @@ void TapeWidget::setTape(const QVector<QString>& tape, int headPos)
                                          m_headPos - m_visibleCells * 2 / 3);
     }
 
-    // Вычисляем целевое смещение каретки
-    qreal targetHeadOffset = 0.0;
+    // Вычисляем смещения для анимации
+    qreal startHeadOffset = m_headOffset;
+    qreal startTapeOffset = m_tapeOffset;
 
-    // Вычисляем целевое смещение ленты
-    qreal targetTapeOffset = 0.0;
+    // Если головка двигается, добавляем смещение
+    if (oldHeadPos != m_headPos) {
+        // Направление движения: отрицательное смещение если двигаемся вправо
+        qreal direction = (oldHeadPos < m_headPos) ? -1.0 : 1.0;
+        startHeadOffset += direction;
+    }
 
-    // Запускаем анимацию от текущих значений к целевым
+    // Если лента должна сдвинуться
+    if (m_targetVisibleStartIndex != m_visibleStartIndex) {
+        startTapeOffset += (m_visibleStartIndex - m_targetVisibleStartIndex);
+    }
+
+    // Устанавливаем начальные значения
+    m_headOffset = startHeadOffset;
+    m_tapeOffset = startTapeOffset;
+
+    // Настраиваем анимацию к нулевым значениям
     m_headAnimation->setStartValue(m_headOffset);
-    m_headAnimation->setEndValue(targetHeadOffset);
+    m_headAnimation->setEndValue(0.0);
 
     m_tapeAnimation->setStartValue(m_tapeOffset);
-    m_tapeAnimation->setEndValue(targetTapeOffset);
+    m_tapeAnimation->setEndValue(0.0);
 
+    m_animationInProgress = true;
     m_animationGroup->start();
 
     update();
@@ -110,22 +127,23 @@ void TapeWidget::paintEvent(QPaintEvent *event)
     painter.setRenderHint(QPainter::Antialiasing);
     painter.setRenderHint(QPainter::TextAntialiasing);
 
-    // Вычисляем смещение с учётом текущей анимации
-    qreal currentTapeOffset = m_visibleStartIndex + m_tapeOffset;
-    int offsetX = 10 - currentTapeOffset * m_cellWidth;
+    // Вычисляем текущее смещение ленты с учётом анимации
+    qreal currentVisibleStart = m_visibleStartIndex + m_tapeOffset;
+    int offsetX = 10 - currentVisibleStart * m_cellWidth;
 
     // Рисуем ячейки ленты
     for (int i = 0; i < m_tape.size(); ++i) {
         int x = offsetX + i * m_cellWidth;
 
+        // Пропускаем невидимые ячейки
         if (x + m_cellWidth < 0 || x > width()) {
             continue;
         }
 
         QRect cellRect(x, m_cellHeight + 10, m_cellWidth, m_cellHeight);
 
-        // Подсветка текущей ячейки
-        if (i == m_headPos) {
+        // Подсветка текущей ячейки (если не в процессе анимации)
+        if (i == m_headPos && !m_animationInProgress) {
             painter.setPen(QPen(QColor(255, 200, 200), 2));
             painter.setBrush(QColor(255, 240, 240));
         } else {
@@ -190,6 +208,7 @@ void TapeWidget::setTapeOffset(qreal offset)
 
 void TapeWidget::onAnimationFinished()
 {
+    m_animationInProgress = false;
     m_visibleStartIndex = m_targetVisibleStartIndex;
     m_headOffset = 0.0;
     m_tapeOffset = 0.0;
@@ -199,7 +218,7 @@ void TapeWidget::onAnimationFinished()
 
 void TapeWidget::adjustVisibleRange()
 {
-    // Не используется, оставлен для совместимости
+    // Не используется
 }
 
 int TapeWidget::indexToX(int index) const
