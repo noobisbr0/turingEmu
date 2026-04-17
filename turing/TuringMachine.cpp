@@ -70,9 +70,9 @@ void TuringMachine::ensureTapeSize(int index)
 Transition TuringMachine::parseCommand(const QString& command, const QString& currentSymbol, const QString& currentState)
 {
     Transition t;
-    t.writeSymbol = currentSymbol;  // по умолчанию не меняем
-    t.direction = "N";              // по умолчанию стоим
-    t.nextState = currentState;     // по умолчанию не меняем состояние
+    t.writeSymbol = currentSymbol;
+    t.direction = "N";
+    t.nextState = currentState;
 
     QString text = command.trimmed();
     if (text.isEmpty()) {
@@ -81,7 +81,6 @@ Transition TuringMachine::parseCommand(const QString& command, const QString& cu
 
     QStringList parts = text.split(' ', Qt::SkipEmptyParts);
 
-    // Проверяем специальные случаи
     if (parts.size() == 1) {
         QString part = parts[0];
         if (part == "!") {
@@ -89,7 +88,6 @@ Transition TuringMachine::parseCommand(const QString& command, const QString& cu
         } else if (part == "L" || part == "R" || part == "N") {
             t.direction = part;
         } else {
-            // Одиночный символ - только запись (состояние и направление не меняются)
             t.writeSymbol = part;
         }
     } else if (parts.size() == 2) {
@@ -97,43 +95,34 @@ Transition TuringMachine::parseCommand(const QString& command, const QString& cu
         QString part2 = parts[1];
 
         if (part2 == "!") {
-            // R ! или L ! или N ! или символ !
             if (part1 == "L" || part1 == "R" || part1 == "N") {
                 t.direction = part1;
                 t.nextState = "!";
             } else {
-                // символ ! (записать символ и остановка)
                 t.writeSymbol = part1;
                 t.nextState = "!";
             }
         } else if (part2 == "L" || part2 == "R" || part2 == "N") {
-            // символ направление (1 R)
             t.writeSymbol = part1;
             t.direction = part2;
         } else if (part1 == "L" || part1 == "R" || part1 == "N") {
-            // направление состояние (R q1)
             t.direction = part1;
             t.nextState = part2;
         } else {
-            // символ состояние (# q1) - запись символа и переход в состояние без движения
             t.writeSymbol = part1;
             t.nextState = part2;
-            t.direction = "N";  // явно указываем, что движения нет
+            t.direction = "N";
         }
     } else if (parts.size() >= 3) {
         QString part1 = parts[0];
         QString part2 = parts[1];
         QString part3 = parts[2];
 
-        // Проверяем, является ли part2 направлением
         if (part2 == "L" || part2 == "R" || part2 == "N") {
-            // Полная команда: символ направление состояние
             t.writeSymbol = part1;
             t.direction = part2;
             t.nextState = part3;
         } else {
-            // Нестандартный формат, пробуем интерпретировать как символ и состояние
-            // (если больше 2 частей, но вторая не направление)
             t.writeSymbol = part1;
             t.direction = "N";
             t.nextState = part3;
@@ -157,6 +146,7 @@ bool TuringMachine::step()
 
     if (!m_program.contains(m_state) || !m_program[m_state].contains(currentSymbol)) {
         m_halted = true;
+        emit error(QString("Нет команды для состояния '%1' и символа '%2'").arg(m_state).arg(currentSymbol));
         emit halted();
         return true;
     }

@@ -6,6 +6,10 @@
 #include <QLineEdit>
 #include <QPushButton>
 #include <QTimer>
+#include <QSet>
+#include <QStringList>
+#include <QLabel>
+#include <QStatusBar>
 #include "TuringMachine.h"
 #include "TapeWidget.h"
 
@@ -20,6 +24,7 @@ public:
     ~MainWindow();
 
 private slots:
+    void onChangeAlphabets();
     void setString();
     void runMachine();
     void stopMachine();
@@ -32,6 +37,8 @@ private slots:
     void onCellChanged(int row, int col);
     void onTapeAnimationFinished();
     void updateTableHighlight(const QString& state);
+    void onMachineHalted();
+    void onMachineError();
 
 private:
     TuringMachine *m_machine;
@@ -50,19 +57,23 @@ private:
     QPushButton *m_resetButton;
     QPushButton *m_speedUpButton;
     QPushButton *m_slowDownButton;
+    QPushButton *m_changeAlphabetsButton;
 
     QTimer *m_runTimer;
     int m_stepDelayMs;
 
     QSet<QString> m_tapeAlphabet;
     QSet<QString> m_extraSymbols;
-    QStringList m_statesList; // для отслеживания состояний
+    QStringList m_statesList;
 
-    void buildTable();
+    QLabel *m_statusLabel;
+
+    void buildTable(bool clearData = false);
     void enableInputs(bool enable);
     bool validateInputWord(const QString& word);
     QMap<QString, QMap<QString, Transition>> collectProgram();
     QString generateNewStateName();
+    void setStatus(const QString& status, const QString& color = "black");
 };
 
 #endif // MAINWINDOW_H

@@ -34,6 +34,16 @@ SetupDialog::SetupDialog(QWidget *parent)
     connect(m_setButton, &QPushButton::clicked, this, &SetupDialog::onSetClicked);
 }
 
+void SetupDialog::setTapeAlphabet(const QString& text)
+{
+    m_tapeAlphabetEdit->setText(text);
+}
+
+void SetupDialog::setExtraSymbols(const QString& text)
+{
+    m_extraSymbolsEdit->setText(text);
+}
+
 QSet<QString> SetupDialog::parseAlphabet(const QString& text)
 {
     QSet<QString> result;

@@ -45,6 +45,7 @@ signals:
     void tapeChanged();
     void stateChanged(const QString& state);
     void halted();
+    void error(const QString& message);
 
 private:
     QSet<QString> m_tapeAlphabet;

@@ -1,10 +1,12 @@
 #include "MainWindow.h"
+#include "SetupDialog.h"
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QHeaderView>
 #include <QMessageBox>
 #include <QTableWidgetItem>
+#include <QStatusBar>
 
 MainWindow::MainWindow(const QSet<QString>& tapeAlphabet,
                        const QSet<QString>& extraSymbols,
@@ -21,6 +23,13 @@ MainWindow::MainWindow(const QSet<QString>& tapeAlphabet,
 
     QWidget *central = new QWidget(this);
     QVBoxLayout *mainLayout = new QVBoxLayout(central);
+
+    // Change alphabets button
+    QHBoxLayout *topLayout = new QHBoxLayout();
+    m_changeAlphabetsButton = new QPushButton("Изменить алфавиты");
+    topLayout->addStretch();
+    topLayout->addWidget(m_changeAlphabetsButton);
+    mainLayout->addLayout(topLayout);
 
     // Tape widget
     mainLayout->addWidget(m_tapeWidget);
@@ -71,11 +80,17 @@ MainWindow::MainWindow(const QSet<QString>& tapeAlphabet,
 
     setCentralWidget(central);
 
+    // Status bar
+    m_statusLabel = new QLabel("Программа не задана");
+    m_statusLabel->setStyleSheet("QLabel { color: gray; padding: 2px; }");
+    statusBar()->addWidget(m_statusLabel);
+
     m_runTimer = new QTimer(this);
     m_runTimer->setInterval(m_stepDelayMs);
     connect(m_runTimer, &QTimer::timeout, this, &MainWindow::stepMachine);
 
     // Connections
+    connect(m_changeAlphabetsButton, &QPushButton::clicked, this, &MainWindow::onChangeAlphabets);
     connect(m_setStringButton, &QPushButton::clicked, this, &MainWindow::setString);
     connect(m_runButton, &QPushButton::clicked, this, &MainWindow::runMachine);
     connect(m_stopButton, &QPushButton::clicked, this, &MainWindow::stopMachine);
@@ -88,38 +103,149 @@ MainWindow::MainWindow(const QSet<QString>& tapeAlphabet,
     connect(m_programTable, &QTableWidget::cellChanged, this, &MainWindow::onCellChanged);
     connect(m_tapeWidget, &TapeWidget::animationFinished, this, &MainWindow::onTapeAnimationFinished);
     connect(m_machine, &TuringMachine::stateChanged, this, &MainWindow::updateTableHighlight);
-    connect(m_machine, &TuringMachine::halted, this, [this]() {
-        m_runTimer->stop();
-        m_stopButton->setEnabled(false);
-        m_stepButton->setEnabled(false);
-        m_runButton->setEnabled(false);
-        m_resetButton->setEnabled(true);
-    });
+    connect(m_machine, &TuringMachine::halted, this, &MainWindow::onMachineHalted);
+    connect(m_machine, &TuringMachine::error, this, &MainWindow::onMachineError);
 
     // Initialize states list
     m_statesList.append("q0");
 
     // Build initial table
     buildTable();
+
+    setStatus("Программа не задана", "gray");
 }
 
 MainWindow::~MainWindow() {}
 
-void MainWindow::buildTable()
+void MainWindow::setStatus(const QString& status, const QString& color)
+{
+    m_statusLabel->setText(status);
+    m_statusLabel->setStyleSheet(QString("QLabel { color: %1; padding: 2px; }").arg(color));
+}
+
+void MainWindow::onMachineHalted()
+{
+    m_runTimer->stop();
+    m_stopButton->setEnabled(false);
+    m_stepButton->setEnabled(false);
+    m_runButton->setEnabled(false);
+    m_resetButton->setEnabled(true);
+    m_changeAlphabetsButton->setEnabled(true);
+
+    if (m_machine->currentState() == "!") {
+        setStatus("Программа успешно завершена", "green");
+    } else {
+        setStatus("Программа остановлена", "orange");
+    }
+}
+
+void MainWindow::onMachineError()
+{
+    m_runTimer->stop();
+    m_stopButton->setEnabled(false);
+    m_stepButton->setEnabled(false);
+    m_runButton->setEnabled(false);
+    m_resetButton->setEnabled(true);
+    m_changeAlphabetsButton->setEnabled(true);
+
+    setStatus("ОШИБКА: Нет команды для выполнения", "red");
+}
+
+void MainWindow::onChangeAlphabets()
+{
+    SetupDialog dialog(this);
+    dialog.setWindowTitle("Изменение алфавитов");
+
+    QString currentTapeAlphabet;
+    QStringList tapeList = m_tapeAlphabet.values();
+    tapeList.sort();
+    for (const QString& sym : tapeList) {
+        currentTapeAlphabet += sym;
+    }
+    dialog.setTapeAlphabet(currentTapeAlphabet);
+
+    QString currentExtraSymbols;
+    QStringList extraList = m_extraSymbols.values();
+    extraList.sort();
+    for (const QString& sym : extraList) {
+        currentExtraSymbols += sym;
+    }
+    dialog.setExtraSymbols(currentExtraSymbols);
+
+    if (dialog.exec() != QDialog::Accepted) {
+        return;
+    }
+
+    QSet<QString> newTapeAlphabet = dialog.tapeAlphabet();
+    QSet<QString> newExtraSymbols = dialog.extraSymbols();
+
+    if (newTapeAlphabet.isEmpty()) {
+        QMessageBox::warning(this, "Ошибка", "Алфавит строки не может быть пустым");
+        return;
+    }
+
+    QSet<QString> intersection = newTapeAlphabet;
+    intersection.intersect(newExtraSymbols);
+    if (!intersection.isEmpty()) {
+        QMessageBox::warning(this, "Ошибка",
+                             "Алфавит строки и доп. символы не должны пересекаться");
+        return;
+    }
+
+    bool onlyAdded = true;
+
+    for (const QString& oldSym : m_tapeAlphabet) {
+        if (!newTapeAlphabet.contains(oldSym)) {
+            onlyAdded = false;
+            break;
+        }
+    }
+
+    if (onlyAdded) {
+        for (const QString& oldSym : m_extraSymbols) {
+            if (!newExtraSymbols.contains(oldSym)) {
+                onlyAdded = false;
+                break;
+            }
+        }
+    }
+
+    m_tapeAlphabet = newTapeAlphabet;
+    m_extraSymbols = newExtraSymbols;
+    m_machine->setAlphabets(m_tapeAlphabet, m_extraSymbols);
+
+    if (onlyAdded) {
+        buildTable(false);
+    } else {
+        buildTable(true);
+        QMessageBox::information(this, "Информация",
+                                 "Алфавиты были изменены с удалением символов.\n"
+                                 "Таблица программы очищена.");
+    }
+
+    m_inputWordEdit->clear();
+    m_runButton->setEnabled(false);
+    m_stepButton->setEnabled(false);
+    m_resetButton->setEnabled(false);
+    m_speedUpButton->setEnabled(false);
+    m_slowDownButton->setEnabled(false);
+    m_machine->reset();
+
+    setStatus("Программа не задана", "gray");
+}
+
+void MainWindow::buildTable(bool clearData)
 {
     m_programTable->blockSignals(true);
 
     QStringList symbols;
 
-    // Алфавит строки
     QStringList tapeSymbols = m_tapeAlphabet.values();
     tapeSymbols.sort();
     symbols.append(tapeSymbols);
 
-    // Пустой символ
     symbols.append(TuringMachine::EMPTY_SYMBOL);
 
-    // Доп. символы
     QStringList extraSymbols = m_extraSymbols.values();
     extraSymbols.sort();
     symbols.append(extraSymbols);
@@ -127,34 +253,38 @@ void MainWindow::buildTable()
     m_programTable->setColumnCount(symbols.size());
     m_programTable->setHorizontalHeaderLabels(symbols);
 
-    // Сохраняем текущие данные если есть
     QMap<QString, QMap<QString, QString>> oldData;
-    for (int row = 0; row < m_programTable->rowCount(); ++row) {
-        if (m_programTable->verticalHeaderItem(row)) {
-            QString state = m_programTable->verticalHeaderItem(row)->text();
-            for (int col = 0; col < m_programTable->columnCount(); ++col) {
-                QTableWidgetItem *item = m_programTable->item(row, col);
-                if (item && !item->text().isEmpty()) {
-                    QString symbol = m_programTable->horizontalHeaderItem(col)->text();
-                    oldData[state][symbol] = item->text();
+    if (!clearData) {
+        for (int row = 0; row < m_programTable->rowCount(); ++row) {
+            if (m_programTable->verticalHeaderItem(row)) {
+                QString state = m_programTable->verticalHeaderItem(row)->text();
+                for (int col = 0; col < m_programTable->columnCount(); ++col) {
+                    QTableWidgetItem *item = m_programTable->item(row, col);
+                    if (item && !item->text().isEmpty()) {
+                        QString symbol = m_programTable->horizontalHeaderItem(col)->text();
+                        oldData[state][symbol] = item->text();
+                    }
                 }
             }
         }
     }
 
-    // Восстанавливаем строки
+    if (clearData) {
+        m_statesList.clear();
+        m_statesList.append("q0");
+    }
+
     m_programTable->setRowCount(m_statesList.size());
     for (int i = 0; i < m_statesList.size(); ++i) {
         m_programTable->setVerticalHeaderItem(i, new QTableWidgetItem(m_statesList[i]));
     }
 
-    // Восстанавливаем данные
     for (int row = 0; row < m_programTable->rowCount(); ++row) {
         QString state = m_programTable->verticalHeaderItem(row)->text();
         for (int col = 0; col < m_programTable->columnCount(); ++col) {
             QString symbol = m_programTable->horizontalHeaderItem(col)->text();
             QTableWidgetItem *item = new QTableWidgetItem("");
-            if (oldData.contains(state) && oldData[state].contains(symbol)) {
+            if (!clearData && oldData.contains(state) && oldData[state].contains(symbol)) {
                 item->setText(oldData[state][symbol]);
             }
             m_programTable->setItem(row, col, item);
@@ -168,7 +298,6 @@ void MainWindow::setString()
 {
     QString word = m_inputWordEdit->text();
 
-    // Validate - только символы из алфавита строки
     for (QChar ch : word) {
         QString sym(ch);
         if (!m_tapeAlphabet.contains(sym)) {
@@ -179,7 +308,6 @@ void MainWindow::setString()
         }
     }
 
-    // Create tape
     QVector<QString> tape;
     for (QChar ch : word) {
         tape.append(QString(ch));
@@ -188,7 +316,6 @@ void MainWindow::setString()
         tape.append(TuringMachine::EMPTY_SYMBOL);
     }
 
-    // Collect program
     QMap<QString, QMap<QString, Transition>> program = collectProgram();
 
     if (program.isEmpty()) {
@@ -198,7 +325,6 @@ void MainWindow::setString()
 
     m_machine->setProgram(program);
 
-    // Check for halt
     if (!m_machine->programHasHalt()) {
         QMessageBox::warning(this, "Ошибка",
                              "В программе нет команды остановки (состояние '!')\n\n"
@@ -224,6 +350,8 @@ void MainWindow::setString()
     m_slowDownButton->setEnabled(true);
 
     enableInputs(false);
+
+    setStatus("Программа готова к запуску", "blue");
 }
 
 QMap<QString, QMap<QString, Transition>> MainWindow::collectProgram()
@@ -262,6 +390,9 @@ void MainWindow::runMachine()
     m_runButton->setEnabled(false);
     m_stopButton->setEnabled(true);
     m_stepButton->setEnabled(false);
+    m_changeAlphabetsButton->setEnabled(false);
+
+    setStatus("Программа выполняется...", "green");
 }
 
 void MainWindow::stopMachine()
@@ -270,12 +401,16 @@ void MainWindow::stopMachine()
     m_runButton->setEnabled(true);
     m_stopButton->setEnabled(false);
     m_stepButton->setEnabled(true);
+    m_changeAlphabetsButton->setEnabled(true);
+
+    setStatus("Программа приостановлена", "orange");
 }
 
 void MainWindow::stepMachine()
 {
     if (m_machine->isHalted()) {
         m_runTimer->stop();
+        m_changeAlphabetsButton->setEnabled(true);
         return;
     }
 
@@ -287,6 +422,7 @@ void MainWindow::stepMachine()
         m_runButton->setEnabled(false);
         m_stopButton->setEnabled(false);
         m_stepButton->setEnabled(false);
+        m_changeAlphabetsButton->setEnabled(true);
     }
 }
 
@@ -295,7 +431,6 @@ void MainWindow::resetMachine()
     stopMachine();
     m_machine->reset();
 
-    // Re-initialize tape
     QString word = m_inputWordEdit->text();
     QVector<QString> tape;
     for (QChar ch : word) {
@@ -310,6 +445,9 @@ void MainWindow::resetMachine()
     enableInputs(false);
     m_runButton->setEnabled(true);
     m_stepButton->setEnabled(true);
+    m_changeAlphabetsButton->setEnabled(true);
+
+    setStatus("Программа сброшена. Готова к запуску", "blue");
 }
 
 void MainWindow::speedUp()
@@ -393,10 +531,8 @@ void MainWindow::onCellChanged(int row, int col)
         return;
     }
 
-    // Проверяем, что команда валидна
     Transition t = TuringMachine::parseCommand(text, "", "");
 
-    // Проверяем направление
     if (t.direction != "L" && t.direction != "R" && t.direction != "N") {
         item->setBackground(Qt::yellow);
     } else {
