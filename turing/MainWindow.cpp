@@ -5,6 +5,7 @@
 #include <QHeaderView>
 #include <QMessageBox>
 #include <QTableWidgetItem>
+#include <QDebug>
 
 MainWindow::MainWindow(const QSet<QString>& tapeAlphabet,
                        const QSet<QString>& extraSymbols,
@@ -109,22 +110,60 @@ void MainWindow::buildTable()
 {
     m_programTable->blockSignals(true);
 
+    // Собираем все символы в правильном порядке:
+    // 1. Алфавит строки (отсортированный)
+    // 2. Пустой символ /\
+    // 3. Доп. символы (отсортированные)
     QStringList symbols;
-    for (const QString& sym : m_tapeAlphabet) {
-        symbols.append(sym);
-    }
-    for (const QString& sym : m_extraSymbols) {
-        symbols.append(sym);
-    }
-    symbols.sort();
+
+    // Алфавит строки
+    QStringList tapeSymbols = m_tapeAlphabet.values();
+    tapeSymbols.sort();
+    symbols.append(tapeSymbols);
+
+    // Пустой символ
+    symbols.append(TuringMachine::EMPTY_SYMBOL);
+
+    // Доп. символы
+    QStringList extraSymbols = m_extraSymbols.values();
+    extraSymbols.sort();
+    symbols.append(extraSymbols);
 
     m_programTable->setColumnCount(symbols.size());
     m_programTable->setHorizontalHeaderLabels(symbols);
 
-    // Restore rows from states list
+    // Сохраняем текущие данные если есть
+    QMap<QString, QMap<QString, QString>> oldData;
+    for (int row = 0; row < m_programTable->rowCount(); ++row) {
+        if (m_programTable->verticalHeaderItem(row)) {
+            QString state = m_programTable->verticalHeaderItem(row)->text();
+            for (int col = 0; col < m_programTable->columnCount(); ++col) {
+                QTableWidgetItem *item = m_programTable->item(row, col);
+                if (item && !item->text().isEmpty()) {
+                    QString symbol = m_programTable->horizontalHeaderItem(col)->text();
+                    oldData[state][symbol] = item->text();
+                }
+            }
+        }
+    }
+
+    // Восстанавливаем строки
     m_programTable->setRowCount(m_statesList.size());
     for (int i = 0; i < m_statesList.size(); ++i) {
         m_programTable->setVerticalHeaderItem(i, new QTableWidgetItem(m_statesList[i]));
+    }
+
+    // Восстанавливаем данные
+    for (int row = 0; row < m_programTable->rowCount(); ++row) {
+        QString state = m_programTable->verticalHeaderItem(row)->text();
+        for (int col = 0; col < m_programTable->columnCount(); ++col) {
+            QString symbol = m_programTable->horizontalHeaderItem(col)->text();
+            QTableWidgetItem *item = new QTableWidgetItem("");
+            if (oldData.contains(state) && oldData[state].contains(symbol)) {
+                item->setText(oldData[state][symbol]);
+            }
+            m_programTable->setItem(row, col, item);
+        }
     }
 
     m_programTable->blockSignals(false);
@@ -150,17 +189,25 @@ void MainWindow::setString()
         tape.append(QString(ch));
     }
     if (tape.isEmpty()) {
-        tape.append("Λ");
+        tape.append(TuringMachine::EMPTY_SYMBOL);
     }
 
     // Collect program
     QMap<QString, QMap<QString, Transition>> program = collectProgram();
+
+    if (program.isEmpty()) {
+        QMessageBox::warning(this, "Ошибка", "Программа пуста");
+        return;
+    }
+
     m_machine->setProgram(program);
 
     // Check for halt
     if (!m_machine->programHasHalt()) {
         QMessageBox::warning(this, "Ошибка",
-                             "В программе нет команды остановки (состояние '!')");
+                             "В программе нет команды остановки (состояние '!')\n"
+                             "Формат команды: символ направление состояние\n"
+                             "Пример: 1 R !");
         return;
     }
 
@@ -181,7 +228,10 @@ QMap<QString, QMap<QString, Transition>> MainWindow::collectProgram()
     QMap<QString, QMap<QString, Transition>> program;
 
     for (int row = 0; row < m_programTable->rowCount(); ++row) {
-        QString state = m_programTable->verticalHeaderItem(row)->text();
+        QTableWidgetItem *headerItem = m_programTable->verticalHeaderItem(row);
+        if (!headerItem) continue;
+
+        QString state = headerItem->text();
         QMap<QString, Transition> transitions;
 
         for (int col = 0; col < m_programTable->columnCount(); ++col) {
@@ -189,7 +239,7 @@ QMap<QString, QMap<QString, Transition>> MainWindow::collectProgram()
             QTableWidgetItem *item = m_programTable->item(row, col);
 
             if (item && !item->text().isEmpty()) {
-                QString text = item->text();
+                QString text = item->text().trimmed();
                 QStringList parts = text.split(' ', Qt::SkipEmptyParts);
                 if (parts.size() >= 3) {
                     Transition t;
@@ -256,7 +306,7 @@ void MainWindow::resetMachine()
         tape.append(QString(ch));
     }
     if (tape.isEmpty()) {
-        tape.append("Λ");
+        tape.append(TuringMachine::EMPTY_SYMBOL);
     }
     m_machine->setInitialTape(tape);
     m_tapeWidget->setTape(m_machine->tape(), m_machine->headPosition());
@@ -292,6 +342,9 @@ QString MainWindow::generateNewStateName()
             }
         }
     }
+    if (maxNum == -1) {
+        return "q1";
+    }
     return QString("q%1").arg(maxNum + 1);
 }
 
@@ -303,6 +356,13 @@ void MainWindow::addState()
     int row = m_programTable->rowCount();
     m_programTable->setRowCount(row + 1);
     m_programTable->setVerticalHeaderItem(row, new QTableWidgetItem(newState));
+
+    // Заполняем пустыми ячейками
+    for (int col = 0; col < m_programTable->columnCount(); ++col) {
+        if (!m_programTable->item(row, col)) {
+            m_programTable->setItem(row, col, new QTableWidgetItem(""));
+        }
+    }
 }
 
 void MainWindow::removeState()
@@ -329,9 +389,30 @@ void MainWindow::removeState()
 
 void MainWindow::onCellChanged(int row, int col)
 {
-    // Could add validation here
-    Q_UNUSED(row)
-    Q_UNUSED(col)
+    QTableWidgetItem *item = m_programTable->item(row, col);
+    if (!item) return;
+
+    QString text = item->text().trimmed();
+    if (text.isEmpty()) {
+        item->setBackground(Qt::white);
+        return;
+    }
+
+    // Проверяем формат: "символ направление состояние"
+    QStringList parts = text.split(' ', Qt::SkipEmptyParts);
+    if (parts.size() != 3) {
+        item->setBackground(Qt::yellow);
+        return;
+    }
+
+    QString direction = parts[1];
+
+    // Проверяем направление
+    if (direction != "L" && direction != "R" && direction != "N") {
+        item->setBackground(Qt::yellow);
+    } else {
+        item->setBackground(Qt::white);
+    }
 }
 
 void MainWindow::onTapeAnimationFinished()

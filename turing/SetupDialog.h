@@ -6,6 +6,8 @@
 #include <QPushButton>
 #include <QSet>
 #include <QString>
+#include <qdialog.h>
+#include <qobjectdefs.h>
 
 class SetupDialog : public QDialog
 {
@@ -31,7 +33,7 @@ private:
     QSet<QString> m_tapeAlphabet;
     QSet<QString> m_extraSymbols;
 
-    QSet<QString> parseAlphabet(const QString& text);
+    QSet<QString> parseAlphabet(const class QString& text);
 };
 
 #endif // SETUPDIALOG_H

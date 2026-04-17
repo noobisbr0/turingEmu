@@ -1,12 +1,11 @@
 #include "TapeWidget.h"
 #include <QPainter>
 #include <QPropertyAnimation>
-#include <QParallelAnimationGroup>
-#include <QDebug>
+#include "TuringMachine.h"
 
 TapeWidget::TapeWidget(QWidget *parent)
     : QWidget(parent), m_headPos(0), m_visibleStartIndex(0), m_headOffset(0.0),
-      m_cellWidth(60), m_cellHeight(60), m_visibleCells(15)
+    m_cellWidth(60), m_cellHeight(60), m_visibleCells(15)
 {
     setMinimumSize(m_cellWidth * m_visibleCells, m_cellHeight * 2);
     m_headAnimation = new QPropertyAnimation(this, "headOffset", this);
@@ -17,8 +16,17 @@ TapeWidget::TapeWidget(QWidget *parent)
 
 void TapeWidget::setTape(const QVector<QString>& tape, int headPos)
 {
+    int oldHeadPos = m_headPos;
     m_tape = tape;
     m_headPos = headPos;
+
+    if (oldHeadPos != headPos) {
+        m_headOffset = (oldHeadPos < headPos) ? 0.0 : 0.0;
+        m_headAnimation->setStartValue(0.0);
+        m_headAnimation->setEndValue(0.0);
+        m_headAnimation->start();
+    }
+
     adjustVisibleRange();
     update();
 }
@@ -45,7 +53,8 @@ void TapeWidget::paintEvent(QPaintEvent *event)
         QRect rect(i * m_cellWidth, m_cellHeight, m_cellWidth, m_cellHeight);
         painter.drawRect(rect);
         if (tapeIndex >= 0 && tapeIndex < m_tape.size()) {
-            painter.drawText(rect, Qt::AlignCenter, m_tape.at(tapeIndex));
+            QString symbol = m_tape.at(tapeIndex);
+            painter.drawText(rect, Qt::AlignCenter, symbol);
         }
     }
 
@@ -74,17 +83,12 @@ void TapeWidget::onAnimationFinished()
 
 void TapeWidget::adjustVisibleRange()
 {
-    // Keep head visible
     if (m_headPos < m_visibleStartIndex + 2) {
         m_visibleStartIndex = qMax(0, m_headPos - m_visibleCells / 4);
     } else if (m_headPos >= m_visibleStartIndex + m_visibleCells - 2) {
-        m_visibleStartIndex = qMin(m_tape.size() - m_visibleCells, m_headPos - m_visibleCells * 3 / 4);
+        m_visibleStartIndex = qMin(m_tape.size() - m_visibleCells,
+                                   m_headPos - m_visibleCells * 3 / 4);
     }
     if (m_visibleStartIndex < 0) m_visibleStartIndex = 0;
     update();
-}
-
-int TapeWidget::indexToX(int index) const
-{
-    return (index - m_visibleStartIndex) * m_cellWidth;
 }

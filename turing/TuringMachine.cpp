@@ -1,5 +1,6 @@
 #include "TuringMachine.h"
-#include <QDebug>
+
+const QString TuringMachine::EMPTY_SYMBOL = "/\\";
 
 TuringMachine::TuringMachine(QObject *parent)
     : QObject(parent), m_headPos(0), m_state("q0"), m_halted(true)
@@ -20,6 +21,7 @@ void TuringMachine::setProgram(const QMap<QString, QMap<QString, Transition>>& p
     m_program = program;
     m_states.clear();
     m_states.insert("q0");
+    m_states.insert("!");
     for (auto it = program.begin(); it != program.end(); ++it) {
         m_states.insert(it.key());
         for (auto jt = it.value().begin(); jt != it.value().end(); ++jt) {
@@ -32,14 +34,14 @@ void TuringMachine::setInitialTape(const QVector<QString>& tape)
 {
     m_tape = tape;
     if (m_tape.isEmpty()) {
-        m_tape.append("Λ");
+        m_tape.append(EMPTY_SYMBOL);
     }
     // Add empty symbols around
-    m_tape.prepend("Λ");
-    m_tape.prepend("Λ");
-    m_tape.append("Λ");
-    m_tape.append("Λ");
-    m_headPos = 2; // start after the two leading empty symbols
+    m_tape.prepend(EMPTY_SYMBOL);
+    m_tape.prepend(EMPTY_SYMBOL);
+    m_tape.append(EMPTY_SYMBOL);
+    m_tape.append(EMPTY_SYMBOL);
+    m_headPos = 2;
     m_state = "q0";
     m_halted = false;
     emit tapeChanged();
@@ -56,12 +58,12 @@ void TuringMachine::reset()
 void TuringMachine::ensureTapeSize(int index)
 {
     while (index < 0) {
-        m_tape.prepend("Λ");
+        m_tape.prepend(EMPTY_SYMBOL);
         m_headPos++;
         index++;
     }
     while (index >= m_tape.size()) {
-        m_tape.append("Λ");
+        m_tape.append(EMPTY_SYMBOL);
     }
 }
 

@@ -37,6 +37,8 @@ public:
     QSet<QString> states() const { return m_states; }
     QSet<QString> extraSymbols() const { return m_extraSymbols; }
 
+    static const QString EMPTY_SYMBOL;
+
 signals:
     void tapeChanged();
     void stateChanged(const QString& state);
