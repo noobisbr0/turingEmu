@@ -4,42 +4,35 @@
 #include <QLabel>
 #include <QHeaderView>
 #include <QMessageBox>
-#include <QDebug>
+#include <QTableWidgetItem>
 
-MainWindow::MainWindow(QWidget *parent)
-    : QMainWindow(parent), m_stepDelayMs(500)
+MainWindow::MainWindow(const QSet<QString>& tapeAlphabet,
+                       const QSet<QString>& extraSymbols,
+                       QWidget *parent)
+    : QMainWindow(parent), m_stepDelayMs(500),
+    m_tapeAlphabet(tapeAlphabet), m_extraSymbols(extraSymbols)
 {
+    setWindowTitle("Эмулятор машины Тьюринга");
+
     m_machine = new TuringMachine(this);
+    m_machine->setAlphabets(tapeAlphabet, extraSymbols);
+
     m_tapeWidget = new TapeWidget(this);
 
     QWidget *central = new QWidget(this);
     QVBoxLayout *mainLayout = new QVBoxLayout(central);
-
-    // Alphabet controls
-    QHBoxLayout *alphabetLayout = new QHBoxLayout();
-    alphabetLayout->addWidget(new QLabel("Алфавит ленты (через запятую):"));
-    m_tapeAlphabetEdit = new QLineEdit();
-    alphabetLayout->addWidget(m_tapeAlphabetEdit);
-    alphabetLayout->addWidget(new QLabel("Доп. символы:"));
-    m_extraSymbolsEdit = new QLineEdit();
-    alphabetLayout->addWidget(m_extraSymbolsEdit);
-    m_setAlphabetsButton = new QPushButton("Задать алфавиты");
-    alphabetLayout->addWidget(m_setAlphabetsButton);
-    mainLayout->addLayout(alphabetLayout);
 
     // Tape widget
     mainLayout->addWidget(m_tapeWidget);
 
     // Program table
     m_programTable = new QTableWidget(0, 0);
-    m_programTable->setEnabled(false);
     mainLayout->addWidget(m_programTable);
 
+    // State buttons
     QHBoxLayout *stateButtonsLayout = new QHBoxLayout();
     m_addStateButton = new QPushButton("+ Состояние");
-    m_addStateButton->setEnabled(false);
     m_removeStateButton = new QPushButton("- Состояние");
-    m_removeStateButton->setEnabled(false);
     stateButtonsLayout->addWidget(m_addStateButton);
     stateButtonsLayout->addWidget(m_removeStateButton);
     mainLayout->addLayout(stateButtonsLayout);
@@ -48,10 +41,8 @@ MainWindow::MainWindow(QWidget *parent)
     QHBoxLayout *inputLayout = new QHBoxLayout();
     inputLayout->addWidget(new QLabel("Входное слово:"));
     m_inputWordEdit = new QLineEdit();
-    m_inputWordEdit->setEnabled(false);
     inputLayout->addWidget(m_inputWordEdit);
     m_setStringButton = new QPushButton("Задать строку");
-    m_setStringButton->setEnabled(false);
     inputLayout->addWidget(m_setStringButton);
     mainLayout->addLayout(inputLayout);
 
@@ -85,7 +76,6 @@ MainWindow::MainWindow(QWidget *parent)
     connect(m_runTimer, &QTimer::timeout, this, &MainWindow::stepMachine);
 
     // Connections
-    connect(m_setAlphabetsButton, &QPushButton::clicked, this, &MainWindow::setAlphabets);
     connect(m_setStringButton, &QPushButton::clicked, this, &MainWindow::setString);
     connect(m_runButton, &QPushButton::clicked, this, &MainWindow::runMachine);
     connect(m_stopButton, &QPushButton::clicked, this, &MainWindow::stopMachine);
@@ -105,144 +95,132 @@ MainWindow::MainWindow(QWidget *parent)
         m_runButton->setEnabled(false);
         m_resetButton->setEnabled(true);
     });
+
+    // Initialize states list
+    m_statesList.append("q0");
+
+    // Build initial table
+    buildTable();
 }
 
 MainWindow::~MainWindow() {}
 
-void MainWindow::setAlphabets()
-{
-    QString tapeInput = m_tapeAlphabetEdit->text();
-    QString extraInput = m_extraSymbolsEdit->text();
-
-    QSet<QString> newTapeAlphabet;
-    for (QString s : tapeInput.split(',', Qt::SkipEmptyParts)) {
-        s = s.trimmed();
-        if (!s.isEmpty()) newTapeAlphabet.insert(s);
-    }
-    newTapeAlphabet.insert("Λ");
-
-    QSet<QString> newExtraSymbols;
-    for (QString s : extraInput.split(',', Qt::SkipEmptyParts)) {
-        s = s.trimmed();
-        if (!s.isEmpty()) newExtraSymbols.insert(s);
-    }
-
-    // True: if only added symbols, keep table; else clear.
-    bool onlyAdded = true;
-    for (const QString& oldSym : m_tapeAlphabet) {
-        if (!newTapeAlphabet.contains(oldSym)) {
-            onlyAdded = false;
-            break;
-        }
-    }
-    for (const QString& oldSym : m_extraSymbols) {
-        if (!newExtraSymbols.contains(oldSym)) {
-            onlyAdded = false;
-            break;
-        }
-    }
-
-    m_tapeAlphabet = newTapeAlphabet;
-    m_extraSymbols = newExtraSymbols;
-    m_machine->setAlphabets(m_tapeAlphabet, m_extraSymbols);
-
-    if (onlyAdded && m_programTable->rowCount() > 0) {
-        // Just rebuild columns, keep data
-        buildTable();
-    } else {
-        clearTable();
-        buildTable();
-    }
-
-    enableInputs(true);
-    m_setStringButton->setEnabled(true);
-    m_addStateButton->setEnabled(true);
-    m_removeStateButton->setEnabled(true);
-    m_programTable->setEnabled(true);
-    m_inputWordEdit->setEnabled(true);
-}
-
 void MainWindow::buildTable()
 {
     m_programTable->blockSignals(true);
-    m_programTable->clear();
-    QStringList symbols = (m_tapeAlphabet + m_extraSymbols).values();
+
+    QStringList symbols;
+    for (const QString& sym : m_tapeAlphabet) {
+        symbols.append(sym);
+    }
+    for (const QString& sym : m_extraSymbols) {
+        symbols.append(sym);
+    }
     symbols.sort();
+
     m_programTable->setColumnCount(symbols.size());
     m_programTable->setHorizontalHeaderLabels(symbols);
 
-    // Keep existing rows if any
-    if (m_programTable->rowCount() == 0) {
-        m_programTable->setRowCount(1);
-        m_programTable->setVerticalHeaderItem(0, new QTableWidgetItem("q0"));
+    // Restore rows from states list
+    m_programTable->setRowCount(m_statesList.size());
+    for (int i = 0; i < m_statesList.size(); ++i) {
+        m_programTable->setVerticalHeaderItem(i, new QTableWidgetItem(m_statesList[i]));
     }
-    m_programTable->blockSignals(false);
-}
 
-void MainWindow::clearTable()
-{
-    m_programTable->blockSignals(true);
-    m_programTable->clearContents();
-    m_programTable->setRowCount(0);
     m_programTable->blockSignals(false);
-}
-
-void MainWindow::enableInputs(bool enable)
-{
-    // Used when running/stopping
-    m_tapeAlphabetEdit->setEnabled(enable);
-    m_extraSymbolsEdit->setEnabled(enable);
-    m_setAlphabetsButton->setEnabled(enable);
-    m_inputWordEdit->setEnabled(enable);
-    m_setStringButton->setEnabled(enable);
-    m_programTable->setEnabled(enable);
-    m_addStateButton->setEnabled(enable);
-    m_removeStateButton->setEnabled(enable);
 }
 
 void MainWindow::setString()
 {
     QString word = m_inputWordEdit->text();
-    QVector<QString> tape;
+
+    // Validate
     for (QChar ch : word) {
         QString sym(ch);
         if (!m_tapeAlphabet.contains(sym) && !m_extraSymbols.contains(sym)) {
-            QMessageBox::warning(this, "Ошибка", "Символ не из алфавита: " + sym);
+            QMessageBox::warning(this, "Ошибка",
+                                 QString("Символ '%1' не входит в алфавит").arg(sym));
             return;
         }
-        tape.append(sym);
     }
-    if (tape.isEmpty()) tape.append("Λ");
-    m_machine->setInitialTape(tape, 0);
-    m_tapeWidget->setTape(m_machine->tape(), m_machine->headPosition());
 
-    // Check if program has halt
+    // Create tape
+    QVector<QString> tape;
+    for (QChar ch : word) {
+        tape.append(QString(ch));
+    }
+    if (tape.isEmpty()) {
+        tape.append("Λ");
+    }
+
+    // Collect program
+    QMap<QString, QMap<QString, Transition>> program = collectProgram();
+    m_machine->setProgram(program);
+
+    // Check for halt
     if (!m_machine->programHasHalt()) {
-        QMessageBox::warning(this, "Ошибка", "В программе нет команды остановки (!HALT!)");
+        QMessageBox::warning(this, "Ошибка",
+                             "В программе нет команды остановки (состояние '!')");
         return;
     }
+
+    m_machine->setInitialTape(tape);
+    m_tapeWidget->setTape(m_machine->tape(), m_machine->headPosition());
 
     m_runButton->setEnabled(true);
     m_stepButton->setEnabled(true);
     m_resetButton->setEnabled(true);
     m_speedUpButton->setEnabled(true);
     m_slowDownButton->setEnabled(true);
+
+    enableInputs(false);
+}
+
+QMap<QString, QMap<QString, Transition>> MainWindow::collectProgram()
+{
+    QMap<QString, QMap<QString, Transition>> program;
+
+    for (int row = 0; row < m_programTable->rowCount(); ++row) {
+        QString state = m_programTable->verticalHeaderItem(row)->text();
+        QMap<QString, Transition> transitions;
+
+        for (int col = 0; col < m_programTable->columnCount(); ++col) {
+            QString symbol = m_programTable->horizontalHeaderItem(col)->text();
+            QTableWidgetItem *item = m_programTable->item(row, col);
+
+            if (item && !item->text().isEmpty()) {
+                QString text = item->text();
+                QStringList parts = text.split(' ', Qt::SkipEmptyParts);
+                if (parts.size() >= 3) {
+                    Transition t;
+                    t.writeSymbol = parts[0];
+                    t.direction = parts[1];
+                    t.nextState = parts[2];
+                    transitions[symbol] = t;
+                }
+            }
+        }
+
+        if (!transitions.isEmpty()) {
+            program[state] = transitions;
+        }
+    }
+
+    return program;
 }
 
 void MainWindow::runMachine()
 {
     if (m_machine->isHalted()) return;
-    enableInputs(false);
+    m_runTimer->start();
     m_runButton->setEnabled(false);
     m_stopButton->setEnabled(true);
     m_stepButton->setEnabled(false);
-    m_runTimer->start();
 }
 
 void MainWindow::stopMachine()
 {
     m_runTimer->stop();
-    enableInputs(true);
     m_runButton->setEnabled(true);
     m_stopButton->setEnabled(false);
     m_stepButton->setEnabled(true);
@@ -250,23 +228,42 @@ void MainWindow::stopMachine()
 
 void MainWindow::stepMachine()
 {
-    if (m_machine->isHalted()) return;
+    if (m_machine->isHalted()) {
+        m_runTimer->stop();
+        return;
+    }
+
     m_machine->step();
-    // Animate head movement
     m_tapeWidget->setTape(m_machine->tape(), m_machine->headPosition());
-    // In real implementation you'd animate between old and new positions.
-    // Here we just update directly for brevity.
+
+    if (m_machine->isHalted()) {
+        m_runTimer->stop();
+        m_runButton->setEnabled(false);
+        m_stopButton->setEnabled(false);
+        m_stepButton->setEnabled(false);
+    }
 }
 
 void MainWindow::resetMachine()
 {
     stopMachine();
     m_machine->reset();
+
+    // Re-initialize tape
+    QString word = m_inputWordEdit->text();
+    QVector<QString> tape;
+    for (QChar ch : word) {
+        tape.append(QString(ch));
+    }
+    if (tape.isEmpty()) {
+        tape.append("Λ");
+    }
+    m_machine->setInitialTape(tape);
     m_tapeWidget->setTape(m_machine->tape(), m_machine->headPosition());
-    enableInputs(true);
+
+    enableInputs(false);
     m_runButton->setEnabled(true);
     m_stepButton->setEnabled(true);
-    m_resetButton->setEnabled(true);
 }
 
 void MainWindow::speedUp()
@@ -283,32 +280,63 @@ void MainWindow::slowDown()
     m_tapeWidget->setSpeed(m_stepDelayMs);
 }
 
+QString MainWindow::generateNewStateName()
+{
+    int maxNum = -1;
+    for (const QString& state : m_statesList) {
+        if (state.startsWith('q')) {
+            bool ok;
+            int num = state.mid(1).toInt(&ok);
+            if (ok && num > maxNum) {
+                maxNum = num;
+            }
+        }
+    }
+    return QString("q%1").arg(maxNum + 1);
+}
+
 void MainWindow::addState()
 {
+    QString newState = generateNewStateName();
+    m_statesList.append(newState);
+
     int row = m_programTable->rowCount();
     m_programTable->setRowCount(row + 1);
-    m_programTable->setVerticalHeaderItem(row, new QTableWidgetItem("q" + QString::number(row)));
+    m_programTable->setVerticalHeaderItem(row, new QTableWidgetItem(newState));
 }
 
 void MainWindow::removeState()
 {
-    if (m_programTable->rowCount() > 1) {
-        m_programTable->setRowCount(m_programTable->rowCount() - 1);
+    if (m_programTable->rowCount() <= 1) {
+        return; // Keep at least q0
     }
+
+    int row = m_programTable->currentRow();
+    if (row < 0) {
+        row = m_programTable->rowCount() - 1;
+    }
+
+    QString stateToRemove = m_programTable->verticalHeaderItem(row)->text();
+    if (stateToRemove == "q0") {
+        QMessageBox::information(this, "Информация",
+                                 "Нельзя удалить начальное состояние q0");
+        return;
+    }
+
+    m_statesList.removeOne(stateToRemove);
+    m_programTable->removeRow(row);
 }
 
 void MainWindow::onCellChanged(int row, int col)
 {
-    // Validate transition format: "symbol direction state"
-    QString text = m_programTable->item(row, col)->text();
-    // Basic validation could be added here.
-    // For brevity, we'll just accept anything.
+    // Could add validation here
+    Q_UNUSED(row)
+    Q_UNUSED(col)
 }
 
 void MainWindow::onTapeAnimationFinished()
 {
-    // After animation, check if machine needs to continue running
-    if (m_runTimer->isActive()) {
+    if (m_runTimer->isActive() && !m_machine->isHalted()) {
         m_machine->step();
         m_tapeWidget->setTape(m_machine->tape(), m_machine->headPosition());
     }
@@ -323,4 +351,13 @@ void MainWindow::updateTableHighlight(const QString& state)
             break;
         }
     }
+}
+
+void MainWindow::enableInputs(bool enable)
+{
+    m_inputWordEdit->setEnabled(enable);
+    m_setStringButton->setEnabled(enable);
+    m_programTable->setEnabled(enable);
+    m_addStateButton->setEnabled(enable);
+    m_removeStateButton->setEnabled(enable);
 }

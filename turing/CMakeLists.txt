@@ -39,6 +39,8 @@ else()
             ${PROJECT_SOURCES}
             TapeWidget.cpp TapeWidget.h TuringMachine.cpp TuringMachine.h
             TapeWidget.cpp TapeWidget.h TuringMachine.cpp TuringMachine.h
+            SetupDialog.h
+            SetupDialog.cpp
         )
     endif()
 endif()

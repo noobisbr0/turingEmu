@@ -6,7 +6,6 @@
 #include <QLineEdit>
 #include <QPushButton>
 #include <QTimer>
-#include <QSpinBox>
 #include "TuringMachine.h"
 #include "TapeWidget.h"
 
@@ -15,11 +14,12 @@ class MainWindow : public QMainWindow
     Q_OBJECT
 
 public:
-    MainWindow(QWidget *parent = nullptr);
+    MainWindow(const QSet<QString>& tapeAlphabet,
+               const QSet<QString>& extraSymbols,
+               QWidget *parent = nullptr);
     ~MainWindow();
 
 private slots:
-    void setAlphabets();
     void setString();
     void runMachine();
     void stopMachine();
@@ -31,14 +31,11 @@ private slots:
     void removeState();
     void onCellChanged(int row, int col);
     void onTapeAnimationFinished();
+    void updateTableHighlight(const QString& state);
 
 private:
     TuringMachine *m_machine;
     TapeWidget *m_tapeWidget;
-
-    QLineEdit *m_tapeAlphabetEdit;
-    QLineEdit *m_extraSymbolsEdit;
-    QPushButton *m_setAlphabetsButton;
 
     QTableWidget *m_programTable;
     QPushButton *m_addStateButton;
@@ -59,13 +56,13 @@ private:
 
     QSet<QString> m_tapeAlphabet;
     QSet<QString> m_extraSymbols;
+    QStringList m_statesList; // для отслеживания состояний
 
     void buildTable();
-    void clearTable();
     void enableInputs(bool enable);
-    bool validateTapeAlphabet(const QString& input);
     bool validateInputWord(const QString& word);
-    void updateTableHighlight(const QString& state);
+    QMap<QString, QMap<QString, Transition>> collectProgram();
+    QString generateNewStateName();
 };
 
 #endif // MAINWINDOW_H

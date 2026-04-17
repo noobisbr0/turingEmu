@@ -4,17 +4,14 @@
 TuringMachine::TuringMachine(QObject *parent)
     : QObject(parent), m_headPos(0), m_state("q0"), m_halted(true)
 {
-    m_tapeAlphabet.insert("Λ");
 }
 
 void TuringMachine::setAlphabets(const QSet<QString>& tapeAlphabet, const QSet<QString>& extraSymbols)
 {
     m_tapeAlphabet = tapeAlphabet;
-    m_tapeAlphabet.unite(extraSymbols);
-    m_tapeAlphabet.insert("Λ");
+    m_extraSymbols = extraSymbols;
     m_states.clear();
     m_states.insert("q0");
-    m_states.insert("!HALT!");
     m_program.clear();
 }
 
@@ -23,7 +20,6 @@ void TuringMachine::setProgram(const QMap<QString, QMap<QString, Transition>>& p
     m_program = program;
     m_states.clear();
     m_states.insert("q0");
-    m_states.insert("!HALT!");
     for (auto it = program.begin(); it != program.end(); ++it) {
         m_states.insert(it.key());
         for (auto jt = it.value().begin(); jt != it.value().end(); ++jt) {
@@ -32,10 +28,18 @@ void TuringMachine::setProgram(const QMap<QString, QMap<QString, Transition>>& p
     }
 }
 
-void TuringMachine::setInitialTape(const QVector<QString>& tape, int initialHeadPos)
+void TuringMachine::setInitialTape(const QVector<QString>& tape)
 {
     m_tape = tape;
-    m_headPos = initialHeadPos;
+    if (m_tape.isEmpty()) {
+        m_tape.append("Λ");
+    }
+    // Add empty symbols around
+    m_tape.prepend("Λ");
+    m_tape.prepend("Λ");
+    m_tape.append("Λ");
+    m_tape.append("Λ");
+    m_headPos = 2; // start after the two leading empty symbols
     m_state = "q0";
     m_halted = false;
     emit tapeChanged();
@@ -64,7 +68,7 @@ void TuringMachine::ensureTapeSize(int index)
 bool TuringMachine::step()
 {
     if (m_halted) return true;
-    if (m_state == "!HALT!") {
+    if (m_state == "!") {
         m_halted = true;
         emit halted();
         return true;
@@ -72,6 +76,7 @@ bool TuringMachine::step()
 
     ensureTapeSize(m_headPos);
     QString currentSymbol = m_tape.at(m_headPos);
+
     if (!m_program.contains(m_state) || !m_program[m_state].contains(currentSymbol)) {
         m_halted = true;
         emit halted();
@@ -88,12 +93,12 @@ bool TuringMachine::step()
     } else if (t.direction == "R") {
         m_headPos++;
         ensureTapeSize(m_headPos);
-    } // "N" does nothing
+    }
 
     emit tapeChanged();
     emit stateChanged(m_state);
 
-    if (m_state == "!HALT!") {
+    if (m_state == "!") {
         m_halted = true;
         emit halted();
         return true;
@@ -101,19 +106,13 @@ bool TuringMachine::step()
     return false;
 }
 
-void TuringMachine::run()
-{
-    while (!m_halted) {
-        step();
-    }
-}
-
 bool TuringMachine::programHasHalt() const
 {
-    // check if any transition leads to !HALT!
     for (auto it = m_program.begin(); it != m_program.end(); ++it) {
         for (auto jt = it.value().begin(); jt != it.value().end(); ++jt) {
-            if (jt.value().nextState == "!HALT!") return true;
+            if (jt.value().nextState == "!") {
+                return true;
+            }
         }
     }
     return false;

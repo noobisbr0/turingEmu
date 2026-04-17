@@ -6,8 +6,6 @@
 #include <QVector>
 #include <QMap>
 #include <QSet>
-#include <QChar>
-#include <QVariant>
 
 struct Transition {
     QString writeSymbol;
@@ -23,11 +21,10 @@ public:
 
     void setAlphabets(const QSet<QString>& tapeAlphabet, const QSet<QString>& extraSymbols);
     void setProgram(const QMap<QString, QMap<QString, Transition>>& program);
-    void setInitialTape(const QVector<QString>& tape, int initialHeadPos);
+    void setInitialTape(const QVector<QString>& tape);
     void reset();
 
-    bool step(); // returns true if machine halted
-    void run();  // will be controlled externally with timer
+    bool step();
 
     QVector<QString> tape() const { return m_tape; }
     int headPosition() const { return m_headPos; }
@@ -38,6 +35,7 @@ public:
 
     QSet<QString> tapeAlphabet() const { return m_tapeAlphabet; }
     QSet<QString> states() const { return m_states; }
+    QSet<QString> extraSymbols() const { return m_extraSymbols; }
 
 signals:
     void tapeChanged();
@@ -46,6 +44,7 @@ signals:
 
 private:
     QSet<QString> m_tapeAlphabet;
+    QSet<QString> m_extraSymbols;
     QSet<QString> m_states;
     QMap<QString, QMap<QString, Transition>> m_program;
 
