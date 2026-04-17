@@ -30,13 +30,14 @@ protected:
     void resizeEvent(QResizeEvent *event) override;
 
 private slots:
-    void onHeadAnimationFinished();
-    void onTapeAnimationFinished();
+    void onAnimationFinished();
 
 private:
     QVector<QString> m_tape;
     int m_headPos;
+    int m_oldHeadPos;
     int m_visibleStartIndex;
+    int m_oldVisibleStartIndex;
     int m_targetVisibleStartIndex;
 
     qreal m_headOffset;

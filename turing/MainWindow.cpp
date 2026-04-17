@@ -192,6 +192,7 @@ void MainWindow::onChangeAlphabets()
         return;
     }
 
+    // Проверяем, были ли удалены символы
     bool onlyAdded = true;
 
     for (const QString& oldSym : m_tapeAlphabet) {
@@ -214,13 +215,14 @@ void MainWindow::onChangeAlphabets()
     m_extraSymbols = newExtraSymbols;
     m_machine->setAlphabets(m_tapeAlphabet, m_extraSymbols);
 
-    if (onlyAdded) {
-        buildTable(false);
-    } else {
-        buildTable(true);
+    // Всегда используем buildTable с clearData = !onlyAdded
+    // Данные сохранятся только для символов, которые остались
+    buildTable(!onlyAdded);
+
+    if (!onlyAdded) {
         QMessageBox::information(this, "Информация",
                                  "Алфавиты были изменены с удалением символов.\n"
-                                 "Таблица программы очищена.");
+                                 "Данные для удалённых символов очищены.");
     }
 
     m_inputWordEdit->clear();
@@ -238,23 +240,25 @@ void MainWindow::buildTable(bool clearData)
 {
     m_programTable->blockSignals(true);
 
+    // Фиксированный порядок столбцов
     QStringList symbols;
 
+    // 1. Алфавит строки (всегда в начале)
     QStringList tapeSymbols = m_tapeAlphabet.values();
     tapeSymbols.sort();
     symbols.append(tapeSymbols);
 
+    // 2. Пустой символ (фиксированная позиция)
     symbols.append(TuringMachine::EMPTY_SYMBOL);
 
+    // 3. Доп. символы (всегда в конце)
     QStringList extraSymbols = m_extraSymbols.values();
     extraSymbols.sort();
     symbols.append(extraSymbols);
 
-    m_programTable->setColumnCount(symbols.size());
-    m_programTable->setHorizontalHeaderLabels(symbols);
-
+    // Сохраняем текущие данные с ПРАВИЛЬНЫМ сопоставлением символов
     QMap<QString, QMap<QString, QString>> oldData;
-    if (!clearData) {
+    if (!clearData && m_programTable->rowCount() > 0) {
         for (int row = 0; row < m_programTable->rowCount(); ++row) {
             if (m_programTable->verticalHeaderItem(row)) {
                 QString state = m_programTable->verticalHeaderItem(row)->text();
@@ -269,24 +273,34 @@ void MainWindow::buildTable(bool clearData)
         }
     }
 
+    // Устанавливаем новые столбцы
+    m_programTable->setColumnCount(symbols.size());
+    m_programTable->setHorizontalHeaderLabels(symbols);
+
     if (clearData) {
         m_statesList.clear();
         m_statesList.append("q0");
     }
 
+    // Устанавливаем строки
     m_programTable->setRowCount(m_statesList.size());
     for (int i = 0; i < m_statesList.size(); ++i) {
         m_programTable->setVerticalHeaderItem(i, new QTableWidgetItem(m_statesList[i]));
     }
 
+    // Восстанавливаем данные ТОЛЬКО для тех символов, которые совпадают
     for (int row = 0; row < m_programTable->rowCount(); ++row) {
         QString state = m_programTable->verticalHeaderItem(row)->text();
         for (int col = 0; col < m_programTable->columnCount(); ++col) {
             QString symbol = m_programTable->horizontalHeaderItem(col)->text();
             QTableWidgetItem *item = new QTableWidgetItem("");
+
             if (!clearData && oldData.contains(state) && oldData[state].contains(symbol)) {
+                // Символ существует и в старом и в новом алфавите - сохраняем команду
                 item->setText(oldData[state][symbol]);
             }
+            // Если символа нет в oldData - оставляем пустую ячейку
+
             m_programTable->setItem(row, col, item);
         }
     }
