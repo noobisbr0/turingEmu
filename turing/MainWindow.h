@@ -35,11 +35,10 @@ private slots:
     void addState();
     void removeState();
     void onCellChanged(int row, int col);
-    void onTapeAnimationFinished();
+    void onTapeStepCompleted();  // новый слот
     void updateTableHighlight(const QString& state);
     void onMachineHalted();
     void onMachineError();
-    void onTapeStepCompleted();
 
 private:
     TuringMachine *m_machine;

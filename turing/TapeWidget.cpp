@@ -233,6 +233,23 @@ void TapeWidget::setScrollOffset(qreal offset)
     update();
 }
 
+void TapeWidget::clearPendingStates()
+{
+    // Останавливаем анимацию
+    if (m_scrollAnimation->state() == QAbstractAnimation::Running) {
+        m_scrollAnimation->stop();
+    }
+
+    // Очищаем очередь
+    m_pendingStates.clear();
+
+    // Сбрасываем флаги
+    m_isAnimating = false;
+    m_scrollOffset = 0.0;
+
+    update();
+}
+
 void TapeWidget::onAnimationFinished()
 {
     m_isAnimating = false;

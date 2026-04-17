@@ -18,12 +18,13 @@ public:
 
     void setTape(const QVector<QString>& tape, int headPos);
     void setSpeed(int msPerStep);
+    void clearPendingStates();  // новый метод
 
     QSize sizeHint() const override;
 
 signals:
     void animationFinished();
-    void stepCompleted();  // сигнал о завершении одного шага
+    void stepCompleted();
 
 protected:
     void paintEvent(QPaintEvent *event) override;
@@ -54,7 +55,6 @@ private:
 
     bool m_isAnimating;
 
-    // Очередь состояний для анимации
     QQueue<TapeState> m_pendingStates;
     TapeState m_currentState;
     TapeState m_targetState;
