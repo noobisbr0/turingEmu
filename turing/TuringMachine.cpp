@@ -89,7 +89,7 @@ Transition TuringMachine::parseCommand(const QString& command, const QString& cu
         } else if (part == "L" || part == "R" || part == "N") {
             t.direction = part;
         } else {
-            // Одиночный символ - только запись
+            // Одиночный символ - только запись (состояние и направление не меняются)
             t.writeSymbol = part;
         }
     } else if (parts.size() == 2) {
@@ -102,25 +102,42 @@ Transition TuringMachine::parseCommand(const QString& command, const QString& cu
                 t.direction = part1;
                 t.nextState = "!";
             } else {
+                // символ ! (записать символ и остановка)
                 t.writeSymbol = part1;
                 t.nextState = "!";
             }
         } else if (part2 == "L" || part2 == "R" || part2 == "N") {
-            // символ направление
+            // символ направление (1 R)
             t.writeSymbol = part1;
             t.direction = part2;
-        } else {
+        } else if (part1 == "L" || part1 == "R" || part1 == "N") {
             // направление состояние (R q1)
-            if (part1 == "L" || part1 == "R" || part1 == "N") {
-                t.direction = part1;
-                t.nextState = part2;
-            }
+            t.direction = part1;
+            t.nextState = part2;
+        } else {
+            // символ состояние (# q1) - запись символа и переход в состояние без движения
+            t.writeSymbol = part1;
+            t.nextState = part2;
+            t.direction = "N";  // явно указываем, что движения нет
         }
     } else if (parts.size() >= 3) {
-        // Полная команда: символ направление состояние
-        t.writeSymbol = parts[0];
-        t.direction = parts[1];
-        t.nextState = parts[2];
+        QString part1 = parts[0];
+        QString part2 = parts[1];
+        QString part3 = parts[2];
+
+        // Проверяем, является ли part2 направлением
+        if (part2 == "L" || part2 == "R" || part2 == "N") {
+            // Полная команда: символ направление состояние
+            t.writeSymbol = part1;
+            t.direction = part2;
+            t.nextState = part3;
+        } else {
+            // Нестандартный формат, пробуем интерпретировать как символ и состояние
+            // (если больше 2 частей, но вторая не направление)
+            t.writeSymbol = part1;
+            t.direction = "N";
+            t.nextState = part3;
+        }
     }
 
     return t;

@@ -168,12 +168,13 @@ void MainWindow::setString()
 {
     QString word = m_inputWordEdit->text();
 
-    // Validate
+    // Validate - только символы из алфавита строки
     for (QChar ch : word) {
         QString sym(ch);
-        if (!m_tapeAlphabet.contains(sym) && !m_extraSymbols.contains(sym)) {
+        if (!m_tapeAlphabet.contains(sym)) {
             QMessageBox::warning(this, "Ошибка",
-                                 QString("Символ '%1' не входит в алфавит").arg(sym));
+                                 QString("Символ '%1' не входит в алфавит строки.\n"
+                                         "Доп. символы нельзя использовать во входном слове.").arg(sym));
             return;
         }
     }
@@ -200,13 +201,16 @@ void MainWindow::setString()
     // Check for halt
     if (!m_machine->programHasHalt()) {
         QMessageBox::warning(this, "Ошибка",
-                             "В программе нет команды остановки (состояние '!')\n"
+                             "В программе нет команды остановки (состояние '!')\n\n"
                              "Допустимые форматы команд:\n"
-                             "- R (сдвиг вправо)\n"
-                             "- L (сдвиг влево)\n"
-                             "- ! (остановка)\n"
-                             "- R ! (сдвиг вправо и остановка)\n"
-                             "- 1 R q1 (запись, сдвиг, состояние)");
+                             "• R - сдвиг вправо\n"
+                             "• L - сдвиг влево\n"
+                             "• N - остаться на месте\n"
+                             "• ! - остановка\n"
+                             "• R ! - сдвиг вправо и остановка\n"
+                             "• 1 R - запись 1 и сдвиг вправо\n"
+                             "• # q1 - запись # и переход в q1\n"
+                             "• 0 L q1 - запись 0, сдвиг влево, состояние q1");
         return;
     }
 
