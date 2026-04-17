@@ -67,6 +67,65 @@ void TuringMachine::ensureTapeSize(int index)
     }
 }
 
+Transition TuringMachine::parseCommand(const QString& command, const QString& currentSymbol, const QString& currentState)
+{
+    Transition t;
+    t.writeSymbol = currentSymbol;  // по умолчанию не меняем
+    t.direction = "N";              // по умолчанию стоим
+    t.nextState = currentState;     // по умолчанию не меняем состояние
+
+    QString text = command.trimmed();
+    if (text.isEmpty()) {
+        return t;
+    }
+
+    QStringList parts = text.split(' ', Qt::SkipEmptyParts);
+
+    // Проверяем специальные случаи
+    if (parts.size() == 1) {
+        QString part = parts[0];
+        if (part == "!") {
+            t.nextState = "!";
+        } else if (part == "L" || part == "R" || part == "N") {
+            t.direction = part;
+        } else {
+            // Одиночный символ - только запись
+            t.writeSymbol = part;
+        }
+    } else if (parts.size() == 2) {
+        QString part1 = parts[0];
+        QString part2 = parts[1];
+
+        if (part2 == "!") {
+            // R ! или L ! или N ! или символ !
+            if (part1 == "L" || part1 == "R" || part1 == "N") {
+                t.direction = part1;
+                t.nextState = "!";
+            } else {
+                t.writeSymbol = part1;
+                t.nextState = "!";
+            }
+        } else if (part2 == "L" || part2 == "R" || part2 == "N") {
+            // символ направление
+            t.writeSymbol = part1;
+            t.direction = part2;
+        } else {
+            // направление состояние (R q1)
+            if (part1 == "L" || part1 == "R" || part1 == "N") {
+                t.direction = part1;
+                t.nextState = part2;
+            }
+        }
+    } else if (parts.size() >= 3) {
+        // Полная команда: символ направление состояние
+        t.writeSymbol = parts[0];
+        t.direction = parts[1];
+        t.nextState = parts[2];
+    }
+
+    return t;
+}
+
 bool TuringMachine::step()
 {
     if (m_halted) return true;

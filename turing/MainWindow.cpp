@@ -5,7 +5,6 @@
 #include <QHeaderView>
 #include <QMessageBox>
 #include <QTableWidgetItem>
-#include <QDebug>
 
 MainWindow::MainWindow(const QSet<QString>& tapeAlphabet,
                        const QSet<QString>& extraSymbols,
@@ -110,10 +109,6 @@ void MainWindow::buildTable()
 {
     m_programTable->blockSignals(true);
 
-    // Собираем все символы в правильном порядке:
-    // 1. Алфавит строки (отсортированный)
-    // 2. Пустой символ /\
-    // 3. Доп. символы (отсортированные)
     QStringList symbols;
 
     // Алфавит строки
@@ -206,8 +201,12 @@ void MainWindow::setString()
     if (!m_machine->programHasHalt()) {
         QMessageBox::warning(this, "Ошибка",
                              "В программе нет команды остановки (состояние '!')\n"
-                             "Формат команды: символ направление состояние\n"
-                             "Пример: 1 R !");
+                             "Допустимые форматы команд:\n"
+                             "- R (сдвиг вправо)\n"
+                             "- L (сдвиг влево)\n"
+                             "- ! (остановка)\n"
+                             "- R ! (сдвиг вправо и остановка)\n"
+                             "- 1 R q1 (запись, сдвиг, состояние)");
         return;
     }
 
@@ -239,15 +238,8 @@ QMap<QString, QMap<QString, Transition>> MainWindow::collectProgram()
             QTableWidgetItem *item = m_programTable->item(row, col);
 
             if (item && !item->text().isEmpty()) {
-                QString text = item->text().trimmed();
-                QStringList parts = text.split(' ', Qt::SkipEmptyParts);
-                if (parts.size() >= 3) {
-                    Transition t;
-                    t.writeSymbol = parts[0];
-                    t.direction = parts[1];
-                    t.nextState = parts[2];
-                    transitions[symbol] = t;
-                }
+                Transition t = TuringMachine::parseCommand(item->text().trimmed(), symbol, state);
+                transitions[symbol] = t;
             }
         }
 
@@ -357,7 +349,6 @@ void MainWindow::addState()
     m_programTable->setRowCount(row + 1);
     m_programTable->setVerticalHeaderItem(row, new QTableWidgetItem(newState));
 
-    // Заполняем пустыми ячейками
     for (int col = 0; col < m_programTable->columnCount(); ++col) {
         if (!m_programTable->item(row, col)) {
             m_programTable->setItem(row, col, new QTableWidgetItem(""));
@@ -368,7 +359,7 @@ void MainWindow::addState()
 void MainWindow::removeState()
 {
     if (m_programTable->rowCount() <= 1) {
-        return; // Keep at least q0
+        return;
     }
 
     int row = m_programTable->currentRow();
@@ -398,17 +389,11 @@ void MainWindow::onCellChanged(int row, int col)
         return;
     }
 
-    // Проверяем формат: "символ направление состояние"
-    QStringList parts = text.split(' ', Qt::SkipEmptyParts);
-    if (parts.size() != 3) {
-        item->setBackground(Qt::yellow);
-        return;
-    }
-
-    QString direction = parts[1];
+    // Проверяем, что команда валидна
+    Transition t = TuringMachine::parseCommand(text, "", "");
 
     // Проверяем направление
-    if (direction != "L" && direction != "R" && direction != "N") {
+    if (t.direction != "L" && t.direction != "R" && t.direction != "N") {
         item->setBackground(Qt::yellow);
     } else {
         item->setBackground(Qt::white);

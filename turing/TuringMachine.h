@@ -39,6 +39,8 @@ public:
 
     static const QString EMPTY_SYMBOL;
 
+    static Transition parseCommand(const QString& command, const QString& currentSymbol, const QString& currentState);
+
 signals:
     void tapeChanged();
     void stateChanged(const QString& state);
