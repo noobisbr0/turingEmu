@@ -39,6 +39,7 @@ private slots:
     void updateTableHighlight(const QString& state);
     void onMachineHalted();
     void onMachineError();
+    void onTapeStepCompleted();
 
 private:
     TuringMachine *m_machine;

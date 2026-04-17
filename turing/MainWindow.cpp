@@ -101,7 +101,7 @@ MainWindow::MainWindow(const QSet<QString>& tapeAlphabet,
     connect(m_addStateButton, &QPushButton::clicked, this, &MainWindow::addState);
     connect(m_removeStateButton, &QPushButton::clicked, this, &MainWindow::removeState);
     connect(m_programTable, &QTableWidget::cellChanged, this, &MainWindow::onCellChanged);
-    connect(m_tapeWidget, &TapeWidget::animationFinished, this, &MainWindow::onTapeAnimationFinished);
+    connect(m_tapeWidget, &TapeWidget::stepCompleted, this, &MainWindow::onTapeStepCompleted);
     connect(m_machine, &TuringMachine::stateChanged, this, &MainWindow::updateTableHighlight);
     connect(m_machine, &TuringMachine::halted, this, &MainWindow::onMachineHalted);
     connect(m_machine, &TuringMachine::error, this, &MainWindow::onMachineError);
@@ -149,6 +149,16 @@ void MainWindow::onMachineError()
     m_changeAlphabetsButton->setEnabled(true);
 
     setStatus("ОШИБКА: Нет команды для выполнения", "red");
+}
+
+void MainWindow::onTapeStepCompleted()
+{
+    // После завершения анимации одного шага
+    if (m_runTimer->isActive() && !m_machine->isHalted()) {
+        // Делаем следующий шаг машины
+        m_machine->step();
+        m_tapeWidget->setTape(m_machine->tape(), m_machine->headPosition());
+    }
 }
 
 void MainWindow::onChangeAlphabets()

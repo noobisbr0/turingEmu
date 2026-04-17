@@ -3,16 +3,15 @@
 
 #include <QWidget>
 #include <QPropertyAnimation>
-#include <QParallelAnimationGroup>
 #include <QVector>
 #include <QString>
 #include <QEasingCurve>
+#include <QQueue>
 
 class TapeWidget : public QWidget
 {
     Q_OBJECT
-    Q_PROPERTY(qreal headOffset READ headOffset WRITE setHeadOffset)
-    Q_PROPERTY(qreal tapeOffset READ tapeOffset WRITE setTapeOffset)
+    Q_PROPERTY(qreal scrollOffset READ scrollOffset WRITE setScrollOffset)
 
 public:
     explicit TapeWidget(QWidget *parent = nullptr);
@@ -24,6 +23,7 @@ public:
 
 signals:
     void animationFinished();
+    void stepCompleted();  // сигнал о завершении одного шага
 
 protected:
     void paintEvent(QPaintEvent *event) override;
@@ -31,36 +31,39 @@ protected:
 
 private slots:
     void onAnimationFinished();
+    void processNextStep();
 
 private:
+    struct TapeState {
+        QVector<QString> tape;
+        int headPos;
+    };
+
     QVector<QString> m_tape;
     int m_headPos;
-    int m_visibleStartIndex;
-    int m_targetVisibleStartIndex;
+    int m_oldHeadPos;
 
-    qreal m_headOffset;
-    qreal m_tapeOffset;
+    qreal m_scrollOffset;
+    int m_headScreenPos;
 
-    QPropertyAnimation *m_headAnimation;
-    QPropertyAnimation *m_tapeAnimation;
-    QParallelAnimationGroup *m_animationGroup;
+    QPropertyAnimation *m_scrollAnimation;
 
     int m_cellWidth;
     int m_cellHeight;
     int m_visibleCells;
 
     bool m_isAnimating;
-    bool m_animationInProgress;
 
-    qreal headOffset() const { return m_headOffset; }
-    void setHeadOffset(qreal offset);
+    // Очередь состояний для анимации
+    QQueue<TapeState> m_pendingStates;
+    TapeState m_currentState;
+    TapeState m_targetState;
 
-    qreal tapeOffset() const { return m_tapeOffset; }
-    void setTapeOffset(qreal offset);
+    qreal scrollOffset() const { return m_scrollOffset; }
+    void setScrollOffset(qreal offset);
 
-    void adjustVisibleRange();
     void updateCellSize();
-    int indexToX(int index) const;
+    void startAnimationTo(const TapeState& target);
 };
 
 #endif // TAPEWIDGET_H
