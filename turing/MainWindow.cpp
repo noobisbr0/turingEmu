@@ -24,21 +24,17 @@ MainWindow::MainWindow(const QSet<QString>& tapeAlphabet,
     QWidget *central = new QWidget(this);
     QVBoxLayout *mainLayout = new QVBoxLayout(central);
 
-    // Change alphabets button
     QHBoxLayout *topLayout = new QHBoxLayout();
     m_changeAlphabetsButton = new QPushButton("Изменить алфавиты");
     topLayout->addStretch();
     topLayout->addWidget(m_changeAlphabetsButton);
     mainLayout->addLayout(topLayout);
 
-    // Tape widget
     mainLayout->addWidget(m_tapeWidget);
 
-    // Program table
     m_programTable = new QTableWidget(0, 0);
     mainLayout->addWidget(m_programTable);
 
-    // State buttons
     QHBoxLayout *stateButtonsLayout = new QHBoxLayout();
     m_addStateButton = new QPushButton("+ Состояние");
     m_removeStateButton = new QPushButton("- Состояние");
@@ -46,7 +42,6 @@ MainWindow::MainWindow(const QSet<QString>& tapeAlphabet,
     stateButtonsLayout->addWidget(m_removeStateButton);
     mainLayout->addLayout(stateButtonsLayout);
 
-    // Input word
     QHBoxLayout *inputLayout = new QHBoxLayout();
     inputLayout->addWidget(new QLabel("Входное слово:"));
     m_inputWordEdit = new QLineEdit();
@@ -55,7 +50,6 @@ MainWindow::MainWindow(const QSet<QString>& tapeAlphabet,
     inputLayout->addWidget(m_setStringButton);
     mainLayout->addLayout(inputLayout);
 
-    // Control buttons
     QHBoxLayout *controlLayout = new QHBoxLayout();
     m_runButton = new QPushButton("Запустить");
     m_runButton->setEnabled(false);
@@ -80,7 +74,6 @@ MainWindow::MainWindow(const QSet<QString>& tapeAlphabet,
 
     setCentralWidget(central);
 
-    // Status bar
     m_statusLabel = new QLabel("Программа не задана");
     m_statusLabel->setStyleSheet("QLabel { color: gray; padding: 2px; }");
     statusBar()->addWidget(m_statusLabel);
@@ -106,10 +99,8 @@ MainWindow::MainWindow(const QSet<QString>& tapeAlphabet,
     connect(m_machine, &TuringMachine::halted, this, &MainWindow::onMachineHalted);
     connect(m_machine, &TuringMachine::error, this, &MainWindow::onMachineError);
 
-    // Initialize states list
     m_statesList.append("q0");
 
-    // Build initial table
     buildTable();
 
     setStatus("Программа не задана", "gray");

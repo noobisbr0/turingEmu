@@ -18,7 +18,7 @@ public:
 
     void setTape(const QVector<QString>& tape, int headPos);
     void setSpeed(int msPerStep);
-    void clearPendingStates();  // новый метод
+    void clearPendingStates();
 
     QSize sizeHint() const override;
 

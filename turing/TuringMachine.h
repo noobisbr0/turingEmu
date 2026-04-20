@@ -9,7 +9,7 @@
 
 struct Transition {
     QString writeSymbol;
-    QString direction; // "L", "R", "N"
+    QString direction;
     QString nextState;
 };
 

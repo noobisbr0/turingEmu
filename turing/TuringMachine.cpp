@@ -36,7 +36,6 @@ void TuringMachine::setInitialTape(const QVector<QString>& tape)
     if (m_tape.isEmpty()) {
         m_tape.append(EMPTY_SYMBOL);
     }
-    // Add empty symbols around
     m_tape.prepend(EMPTY_SYMBOL);
     m_tape.prepend(EMPTY_SYMBOL);
     m_tape.append(EMPTY_SYMBOL);

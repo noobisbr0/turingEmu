@@ -11,7 +11,6 @@ SetupDialog::SetupDialog(QWidget *parent)
 
     QVBoxLayout *mainLayout = new QVBoxLayout(this);
 
-    // Tape alphabet
     QHBoxLayout *tapeLayout = new QHBoxLayout();
     tapeLayout->addWidget(new QLabel("Алфавит строки (символы без разделителей):"));
     m_tapeAlphabetEdit = new QLineEdit();
@@ -19,7 +18,6 @@ SetupDialog::SetupDialog(QWidget *parent)
     tapeLayout->addWidget(m_tapeAlphabetEdit);
     mainLayout->addLayout(tapeLayout);
 
-    // Extra symbols
     QHBoxLayout *extraLayout = new QHBoxLayout();
     extraLayout->addWidget(new QLabel("Алфавит доп. символов (символы без разделителей):"));
     m_extraSymbolsEdit = new QLineEdit();
@@ -27,7 +25,6 @@ SetupDialog::SetupDialog(QWidget *parent)
     extraLayout->addWidget(m_extraSymbolsEdit);
     mainLayout->addLayout(extraLayout);
 
-    // Set button
     m_setButton = new QPushButton("Задать алфавиты");
     mainLayout->addWidget(m_setButton);
 
@@ -65,7 +62,6 @@ void SetupDialog::onSetClicked()
         return;
     }
 
-    // Check for intersection
     QSet<QString> intersection = m_tapeAlphabet;
     intersection.intersect(m_extraSymbols);
     if (!intersection.isEmpty()) {
