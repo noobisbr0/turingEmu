@@ -81,8 +81,6 @@ MainWindow::MainWindow(const QSet<QString>& tapeAlphabet,
     m_runTimer = new QTimer(this);
     m_runTimer->setInterval(m_stepDelayMs);
     connect(m_runTimer, &QTimer::timeout, this, &MainWindow::stepMachine);
-
-    // Connections
     connect(m_changeAlphabetsButton, &QPushButton::clicked, this, &MainWindow::onChangeAlphabets);
     connect(m_setStringButton, &QPushButton::clicked, this, &MainWindow::setString);
     connect(m_runButton, &QPushButton::clicked, this, &MainWindow::runMachine);
