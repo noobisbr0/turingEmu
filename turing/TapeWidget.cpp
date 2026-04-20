@@ -1,5 +1,4 @@
 #include "TapeWidget.h"
-#include "TuringMachine.h"
 #include <QPainter>
 #include <QPropertyAnimation>
 #include <QResizeEvent>
